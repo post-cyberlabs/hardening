@@ -142,7 +142,7 @@ function main {
   f_rhosts
   f_users
   f_lockroot
-  f_package_remove
+  #f_package_remove
   f_suid
   f_restrictcompilers
   f_umask
