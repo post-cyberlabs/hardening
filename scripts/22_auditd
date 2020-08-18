@@ -7,7 +7,7 @@ function f_auditd {
 
   sed -i 's/^action_mail_acct =.*/action_mail_acct = root/' "$AUDITDCONF"
   sed -i 's/^admin_space_left_action = .*/admin_space_left_action = halt/' "$AUDITDCONF"
-  sed -i 's/^max_log_file_action =.*/max_log_file_action = keep_logs/' "$AUDITDCONF"
+  sed -i 's/^max_log_file_action =.*/max_log_file_action = rotate/' "$AUDITDCONF"
   sed -i 's/^space_left_action =.*/space_left_action = email/' "$AUDITDCONF"
 
   if ! grep -q 'audit=1' /proc/cmdline; then
