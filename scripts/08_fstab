@@ -1,9 +1,10 @@
 function f_fstab {
-  echo "[$SCRIPT_COUNT] /etc/fstab, system/tmp.mount and system/var-tmp.mount"
+#  echo "[$SCRIPT_COUNT] /etc/fstab, system/tmp.mount and system/var-tmp.mount"
+  echo "[$SCRIPT_COUNT] /etc/fstab"
 
   local TMPFSTAB
 
-  cp ./config/tmp.mount /etc/systemd/system/tmp.mount
+#  cp ./config/tmp.mount /etc/systemd/system/tmp.mount
   cp /etc/fstab /etc/fstab.bck
 
   TMPFSTAB=$(mktemp --tmpdir fstab.XXXXX)
@@ -38,34 +39,35 @@ function f_fstab {
     echo 'none /dev/shm tmpfs rw,noexec,nosuid,nodev 0 0' >> /etc/fstab
   fi
 
-# drop this so that sadmin can read process info
+# CDN: drop this so that sadmin can read process info
 #  if ! grep -q '/proc ' /etc/fstab; then
 #    echo 'none /proc proc rw,nosuid,nodev,noexec,relatime,hidepid=2 0 0' >> /etc/fstab
 #  fi
 
-  if [ -e /etc/systemd/system/tmp.mount ]; then
-    sed -i '/^\/tmp/d' /etc/fstab
-
-    for t in $(mount | grep -e "[[:space:]]/tmp[[:space:]]" -e "[[:space:]]/var/tmp[[:space:]]" | awk '{print $3}'); do
-      umount "$t"
-    done
-
-    sed -i '/[[:space:]]\/tmp[[:space:]]/d' /etc/fstab
-
-    ln -s /etc/systemd/system/tmp.mount /etc/systemd/system/default.target.wants/tmp.mount
-    sed -i 's/Options=.*/Options=mode=1777,strictatime,noexec,nodev,nosuid/' /etc/systemd/system/tmp.mount
-
-    cp /etc/systemd/system/tmp.mount /etc/systemd/system/var-tmp.mount
-    sed -i 's/\/tmp/\/var\/tmp/g' /etc/systemd/system/var-tmp.mount
-    ln -s /etc/systemd/system/var-tmp.mount /etc/systemd/system/default.target.wants/var-tmp.mount
-
-    chmod 0644 /etc/systemd/system/tmp.mount
-    chmod 0644 /etc/systemd/system/var-tmp.mount
-
-    systemctl daemon-reload
-  else
-    echo '/etc/systemd/system/tmp.mount was not found.'
-  fi
+# CDN: drop this so that machine learning can execute lib under /tmp
+#  if [ -e /etc/systemd/system/tmp.mount ]; then
+#    sed -i '/^\/tmp/d' /etc/fstab
+#
+#    for t in $(mount | grep -e "[[:space:]]/tmp[[:space:]]" -e "[[:space:]]/var/tmp[[:space:]]" | awk '{print $3}'); #do
+#      umount "$t"
+#    done
+#
+#    sed -i '/[[:space:]]\/tmp[[:space:]]/d' /etc/fstab
+#
+#    ln -s /etc/systemd/system/tmp.mount /etc/systemd/system/default.target.wants/tmp.mount
+#    sed -i 's/Options=.*/Options=mode=1777,strictatime,noexec,nodev,nosuid/' /etc/systemd/system/tmp.mount
+#
+#    cp /etc/systemd/system/tmp.mount /etc/systemd/system/var-tmp.mount
+#    sed -i 's/\/tmp/\/var\/tmp/g' /etc/systemd/system/var-tmp.mount
+#    ln -s /etc/systemd/system/var-tmp.mount /etc/systemd/system/default.target.wants/var-tmp.mount
+#
+#    chmod 0644 /etc/systemd/system/tmp.mount
+#    chmod 0644 /etc/systemd/system/var-tmp.mount
+#
+#    systemctl daemon-reload
+#  else
+#    echo '/etc/systemd/system/tmp.mount was not found.'
+#  fi
 
   ((SCRIPT_COUNT++))
 }
