@@ -1,6 +1,8 @@
 ---
-title: Action failed
+name: Lint failure
+about: A lint failure issue
+title: "[ACTION] Linting failed"
 assignees: konstruktoid
 labels: bug
 ---
-A action failed.
+{{ tools.context.actor }}: {{ tools.context.sha }}

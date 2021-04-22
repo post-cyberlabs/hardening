@@ -2,6 +2,11 @@
 
 load test_helper
 
+@test "Verify dev.tty.ldisc_autoload in /etc/sysctl.*" {
+  run bash -c "grep -R 'dev.tty.ldisc_autoload.*0$' /etc/sysctl.*"
+  [ "$status" -eq 0 ]
+}
+
 @test "Verify fs.protected_hardlinks in /etc/sysctl.*" {
   run bash -c "grep -R '^fs.protected_hardlinks.*1$' /etc/sysctl.*"
   [ "$status" -eq 0 ]
@@ -204,6 +209,11 @@ load test_helper
 
 @test "Verify net.ipv6.conf.all.use_tempaddr in /etc/sysctl.*" {
   run bash -c "grep -R '^net.ipv6.conf.all.use_tempaddr.*2$' /etc/sysctl.*"
+  [ "$status" -eq 0 ]
+}
+
+@test "Verify net.ipv6.conf.all.accept_source_route in /etc/sysctl.*" {
+  run bash -c "grep -R '^net.ipv6.conf.all.accept_source_route.*0$' /etc/sysctl.*"
   [ "$status" -eq 0 ]
 }
 

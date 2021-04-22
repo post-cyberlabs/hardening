@@ -32,6 +32,11 @@ load test_helper
   [ "$status" -eq 0 ]
 }
 
+@test "Verify that audispd-plugins is installed" {
+  run packageInstalled 'audispd-plugins'
+  [ "$status" -eq 0 ]
+}
+
 @test "Verify that debsums is installed" {
   run packageInstalled 'debsums'
   [ "$status" -eq 0 ]
@@ -47,8 +52,8 @@ load test_helper
   [ "$status" -eq 0 ]
 }
 
-@test "Verify that libpam-cracklib is installed" {
-  run packageInstalled 'libpam-cracklib'
+@test "Verify that libpam-pwquality is installed" {
+  run packageInstalled 'libpam-pwquality'
   [ "$status" -eq 0 ]
 }
 
@@ -180,4 +185,9 @@ load test_helper
 @test "Verify that ypbind is not installed" {
   run packageInstalled 'ypbind'
   [ "$status" -eq 1 ]
+}
+
+@test "Verify that psad is installed" {
+  run packageInstalled 'psad'
+  [ "$status" -eq 0 ]
 }

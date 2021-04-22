@@ -20,16 +20,23 @@ function main {
   clear
 
   REQUIREDPROGS='arp w'
+  REQFAILED=0
   for p in $REQUIREDPROGS; do
     if ! command -v "$p" >/dev/null 2>&1; then
       echo "$p is required."
-      exit 1
+      REQFAILED=1
     fi
   done
+
+  if [ $REQFAILED = 1 ]; then
+    echo 'net-tools and procps packages has to be installed.'
+    exit 1
+  fi
 
   ARPBIN="$(command -v arp)"
   WBIN="$(command -v w)"
   LXC="0"
+  SERVERIP="$(ip route | grep '^default' | awk '{print $9}')"
 
   if grep -qE 'container=lxc|container=lxd' /proc/1/environ; then
     LXC="1"
@@ -41,7 +48,7 @@ function main {
     if [[ "$USERIP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
       ADMINIP="$USERIP"
     else
-      ADMINIP=""
+      ADMINIP="$(hostname -I | sed -E 's/\.[0-9]+ /.0\/24 /g')"
     fi
 
     sed -i "s/FW_ADMIN='/FW_ADMIN='$ADMINIP /" ./ubuntu.cfg
@@ -76,11 +83,15 @@ function main {
   readonly LOGROTATE
   readonly LOGROTATE_CONF
   readonly LXC
+  readonly ADMINEMAIL
   readonly NTPSERVERPOOL
   readonly PAMLOGIN
+  readonly PSADCONF
+  readonly PSADDL
   readonly RESOLVEDCONF
   readonly RKHUNTERCONF
   readonly SECURITYACCESS
+  readonly SERVERIP
   readonly SSHDFILE
   readonly SSHFILE
   readonly SSH_GRPS
@@ -126,6 +137,7 @@ function main {
   f_adduser
   f_rootaccess
   f_package_install
+  f_psad
   f_coredump
   f_usbguard
   f_postfix

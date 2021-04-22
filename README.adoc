@@ -5,8 +5,8 @@ image::logo/horizontal.png[Ubuntu Hardening]
 
 A quick way to make a Ubuntu server a bit more secure.
 
-Tested on `18.04 Bionic Beaver`, `Ubuntu 19.10 Eoan Ermine` and
-`Ubuntu 20.04 Focal Fossa (development branch)`.
+Tested on `Ubuntu 20.04 Focal Fossa`, `Ubuntu 20.10 Groovy Gorilla`
+and `Ubuntu 21.04 Hirsute Hippo (development branch)`.
 
 Systemd required.
 
@@ -16,14 +16,22 @@ available as a link:systemd.adoc[separate document].
 If you're interested in testing your host settings, you'll find the
 link:README.adoc#tests[instructions here].
 
-If you're using Ansible, a playbook with most of the above functions implemented
-is available in my Ansible repository https://github.com/konstruktoid/ansible-role-hardening[konstruktoid/ansible-role-hardening].
+NOTE: This is a constant work in progress. Make sure you understand what it
+does. Read the code and do not run this script without first testing in a
+non-operational environment.
 
-A basic ISO-generation script is available in the https://github.com/konstruktoid/hardening-geniso[konstruktoid/hardening-geniso]
+When possible, use the newly installed and configured system as a reference,
+or golden, image. Use that image as a baseline installation media and ensure
+that any future installation comply with benchmarks and policies using a
+configuration management tool, e.g https://www.ansible.com/[Ansible] or
+https://puppet.com/[Puppet].
+
+== Packer template and Ansible playbook
+A https://www.packer.io/[Packer] template is available in the https://github.com/konstruktoid/hardening-geniso[konstruktoid/hardening-geniso]
 repository.
 
-NOTE: This is a constant work in progress. Make sure you understand what it
-does. `Read the code`.
+An Ansible playbook is available in the https://github.com/konstruktoid/ansible-role-hardening[konstruktoid/ansible-role-hardening]
+repository.
 
 == Howto
 Start the installation of the server. +
@@ -39,17 +47,19 @@ swap
 /var
 /var/log (rw,nosuid,nodev,noexec)
 /var/log/audit (rw,nosuid,nodev,noexec)
+/var/tmp (rw,noexec,nodev,nosuid)
 ----
 
-Note that `/tmp` and `/var/tmp` will be added automatically by the script.
+Note that `/tmp` will be added automatically by the script.
 
 === Login, set a Grub2 password, configure and run ubuntu.sh
 Do not add any packages. +
 Log in. +
-Select a Grub2 password (using `grub-mkpasswd-pbkdf2`). +
-Download the script using `git clone https://github.com/konstruktoid/hardening.git`. +
-Change the configuration options in the `ubuntu.cfg` file and last but not least
-run the script, `sudo bash ubuntu.sh`. +
+Select a Grub2 password with `grub-mkpasswd-pbkdf2`. +
+Download the script: `git clone https://github.com/konstruktoid/hardening.git`. +
+Change the configuration options in the `ubuntu.cfg` file. +
+Run the script: `sudo bash ubuntu.sh`. +
+Reboot.
 
 == Configuration options
 [source,shell]
@@ -65,7 +75,8 @@ NTPSERVERPOOL='0.ubuntu.pool.ntp.org 1.ubuntu.pool.ntp.org 2.ubuntu.pool.ntp.org
 TIMEDATECTL='' // <9>
 VERBOSE='N' // <10>
 AUTOFILL='N' // <11>
-CHANGEME='' // <12>
+ADMINEMAIL="root@localhost" // <12>
+CHANGEME='' // <13>
 
 # Configuration files
 ADDUSER='/etc/adduser.conf'
@@ -85,8 +96,11 @@ LOGINDCONF='/etc/systemd/logind.conf'
 LOGINDEFS='/etc/login.defs'
 LOGROTATE='/etc/logrotate.conf'
 PAMLOGIN='/etc/pam.d/login'
+PSADCONF='/etc/psad/psad.conf'
+PSADDL='/etc/psad/auto_dl'
 RESOLVEDCONF='/etc/systemd/resolved.conf'
 RKHUNTERCONF='/etc/default/rkhunter'
+RSYSLOGCONF='/etc/rsyslog.conf'
 SECURITYACCESS='/etc/security/access.conf'
 SSHFILE='/etc/ssh/ssh_config'
 SSHDFILE='/etc/ssh/sshd_config'
@@ -96,6 +110,7 @@ TIMESYNCD='/etc/systemd/timesyncd.conf'
 UFWDEFAULT='/etc/default/ufw'
 USERADD='/etc/default/useradd'
 USERCONF='/etc/systemd/user.conf'
+
 ----
 <1> The IP addresses that will be able to connect with SSH, separated by spaces.
 <2> Which group the users have to be member of in order to acess via SSH, separated by spaces.
@@ -108,7 +123,8 @@ USERCONF='/etc/systemd/user.conf'
 <9> Add a specific time zone or use the system default by leaving it empty.
 <10> If you want all the details or not.
 <11> Let the script guess the `FW_ADMIN` and `SSH_GRPS` settings.
-<12> Add something just to verify that you actually glanced the code.
+<12> Add a valid email address, so PSAD can send notifications.
+<13> Add something just to verify that you actually glanced the code.
 
 == Functions
 
@@ -118,28 +134,21 @@ USERCONF='/etc/systemd/user.conf'
 Setup script, sets APT flags and permission checks.
 
 ==== 02_firewall
-RHEL-07-040520
-
-Enable `ufw`, use `/etc/sysctl.conf`, and allow port 22 from `$FW_ADMIN`.
+Enable `ufw`, use `/etc/sysctl.conf`, prepare to `psad`, and allow port 22 from `$FW_ADMIN`.
 
 ==== 03_disablenet
-CCE-26828-4, CCE-27106-4
-
 Disable `dccp` `sctp` `rds` `tipc` protocols.
 
 ==== 04_disablemnt
-CCE-80137-3, CCE-80138-1, CCE-80139-9, CCE-80140-7, CCE-80141-5, CCE-80142-3,
-CCE-80143-1, UBTU-16-010070
-
-Disable `cramfs` `freevxfs` `jffs2` `hfs` `hfsplus` `squashfs` `udf` `vfat` file
-systems.
+Disable `cramfs` `freevxfs` `jffs2` `hfs` `hfsplus` `udf` `vfat` file systems.
 
 ==== 05_systemdconf
 Disable coredumps and crash shells, set `DefaultLimitNOFILE` and
 `DefaultLimitNPROC` to 1024.
 
 ==== 06_journalctl
-Compress logs, forward to syslog and make log storage persistent.
+Compress logs, forward to syslog and make log storage persistent. Ensure rsyslog
+writes logs with stricter permissions.
 
 ==== 07_timesyncd
 Add four NTP-servers with a latency < 50ms from `$NTPSERVERPOOL`.
@@ -149,24 +158,15 @@ Configure `/tmp/` and `/var/tmp/`. Remove floppy drivers from `/etc/fstab`
 and add `hidepid=2` to `/proc`.
 
 ==== 09_prelink
-CCE-27078-5
-
 Undo prelinking, and remove `prelink` package.
 
 ==== 10_aptget
-CCE-26895-3, UBTU-16-010010, UBTU-16-010560, UBTU-16-010570
-
 Configure `dpkg` and `apt-get`. `apt-get` update and upgrade.
 
 ==== 11_hosts
-V-72315
-
 `/etc/hosts.allow` and `/etc/hosts.deny` restrictions.
 
 ==== 12_logindefs
-CCE-80205-8, UBTU-16-010150, UBTU-16-010170, UBTU-16-010190, UBTU-16-010210,
-UBTU-16-010220, UBTU-16-010640
-
 Modify `/etc/login.defs`, e.g. `UMASK`, password age limits and
 `SHA_CRYPT_MAX_ROUNDS`.
 
@@ -174,80 +174,58 @@ Modify `/etc/login.defs`, e.g. `UMASK`, password age limits and
 Update `$SYSCTL` with `$SYSCTL_CONF`.
 
 ==== 14_limits
-CCE-80169-6, V-72049
-
 Set hard and soft limits.
 
 ==== 15_adduser
-UBTU-16-010280
-
-Set `/bin/false` as default shell when adding users.
+Configure `useradd` and `adduser` to set `/bin/false` as default shell,
+home directory permissions to `0750` and lock users 30 days after password
+expires.
 
 ==== 16_rootaccess
 Limit `/etc/securetty` to `console`, and `root` from 127.0.0.1 in
 `/etc/security/access.conf`.
 
 ==== 17_packages
-UBTU-16-010050, UBTU-16-010500, UBTU-16-010600
-
 Installs `acct` `aide-common` `apparmor-profiles` `apparmor-utils` `auditd`
-`debsums` `gnupg2` `haveged` `libpam-apparmor` `libpam-cracklib`
-`libpam-tmpdir` `needrestart` `openssh-server` `postfix` `rkhunter`
-`sysstat` `systemd-coredump` `tcpd` `update-notifier-common` `vlock`.
+`audispd-plugins` `debsums` `gnupg2` `haveged`
+`libpam-apparmor` `libpam-pwquality` `libpam-tmpdir` `needrestart`
+`openssh-server` `postfix` `rkhunter` `sysstat` `systemd-coredump` `tcpd`
+`psad` `update-notifier-common` `vlock`.
 
 Removes `apport*` `autofs` `avahi*` `beep` `git` `pastebinit`
 `popularity-contest` `rsh*` `rsync` `talk*` `telnet*` `tftp*` `whoopsie`
 `xinetd` `yp-tools` `ypbind`.
 
 ==== 18_sshdconfig
-CCE-27471-2, CCE-27082-7, CCE-27433-2, CCE-27314-4, CCE-27363-1, CCE-27413-4,
-CCE-80222-3, CCE-80223-1, CCE-80225-6, CCE-80224-9, CCE-27445-6, UBTU-16-030200,
-UBTU-16-030210, UBTU-16-030270, UBTU-16-030350
-
 Configure the `OpenSSH`-daemon.
 
 ==== 19_password
-UBTU-16-010090, UBTU-16-010100, UBTU-16-010110, UBTU-16-010120, UBTU-16-010120,
-UBTU-16-010130, UBTU-16-010140, UBTU-16-010180, UBTU-16-010230, UBTU-16-010240,
-UBTU-16-010250, UBTU-16-010290, UBTU-16-010320, UBTU-16-010340
-
-Configure `pam_cracklib.so` and `pam_tally2.so`.
+Configure `pam_pwquality.so` and `pam_tally2.so`.
 
 ==== 20_cron
-CCE-27323-5, CCE-80345-2
-
 Allow `root` to use `cron`. Mask `atd`.
 
 ==== 21_ctraltdel
-CCE-27511-5, UBTU-16-010630
-
 Disable Ctrl-alt-delete.
 
 ==== 22_auditd
-CCE-27407-6, UBTU-16-020000
-
 Configure `auditd`, use `$AUDITD_RULES` and set failure mode `$AUDITD_MODE`.
 
 ==== 23_disablemod
-CCE-27327-6, CCE-27277-3, UBTU-16-010580
-
 Disable `bluetooth` `bnep` `btusb` `cpia2` `firewire-core` `floppy` `n_hdlc`
 `net-pf-31` `pcspkr` `soundcore` `thunderbolt` `usb-midi` `usb-storage`
 `uvcvideo` `v4l2_common` kernel modules.
 
-==== 24_aide
-CCE-27096-7, UBTU-16-020000, UBTU-16-020010
+Note that disabling the `usb-storage` will disable any usage of USB storage
+devices, if such devices are needed `USBGuard` should be configured accordingly.
 
+==== 24_aide
 Configure `aide`.
 
 ==== 25_rhosts
-CCE-27406-8
-
 Remove `hosts.equiv` and `.rhosts`.
 
 ==== 26_users
-UBTU-16-010650
-
 Remove `games` `gnats` `irc` `list` `news` `sync` `uucp` users.
 
 ==== 27_suid
@@ -255,18 +233,12 @@ Remove `suid` bits from the executables listed in
 link:misc/suid.list[this document].
 
 ==== 28_umask
-CCE-80202-5, UBTU-16-010060
-
 Set `bash` and `/etc/profile` umask.
 
 ==== 29_apparmor
-UBTU-16-010600, UBTU-16-010610, UBTU-16-010620
-
 Enforce present `apparmor` profiles.
 
 ==== 30_path
-UBTU-16-010780
-
 Set `root` path to `/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`,
 and user path to `/usr/local/bin:/usr/bin:/bin`.
 
@@ -308,11 +280,20 @@ Restrict compiler access.
 Set `lockdown=confidentiality` if `/sys/kernel/security/lockdown` is present.
 
 ==== 43_sudo
-Configure `sudo` `use_pty`, `logfile`, `!visiblepw`, `!pwfeedback` and
-`passwd_timeout`.
+Configure `sudo` with `use_pty`, `logfile`, `!visiblepw`, `!pwfeedback`,
+`passwd_timeout` and `timestamp_timeout`.
+
+Restrict `su` to the `sudo` group.
+
+==== 44_psad
+Configure `psad`.
 
 ==== 98_systemddelta
 If verbose, show `systemd-delta`.
+
+==== 99_post
+Ensure `secureboot-db` is installed, update grub and ensure strict permissions
+on boot files.
 
 ==== 99_reboot
 Print if a reboot is required.
@@ -356,12 +337,12 @@ f_password
 f_cron
 f_ctrlaltdel
 f_auditd
+f_psad
 f_aide
 f_rhosts
 f_users
 f_lockroot
 f_package_remove
-f_aptget_clean
 f_suid
 f_restrictcompilers
 f_umask
@@ -370,13 +351,14 @@ f_aa_enforce
 f_aide_post
 f_aide_timer
 f_aptget_noexec
+f_aptget_clean
 f_systemddelta
 f_post
 f_checkreboot
 ----
 
 == Tests
-There are approximately 680 https://github.com/sstephenson/bats[Bats tests]
+There are approximately 700 https://github.com/sstephenson/bats[Bats tests]
 for most of the above settings available in the link:tests/[tests directory].
 
 [source,shell]
@@ -384,7 +366,7 @@ for most of the above settings available in the link:tests/[tests directory].
 sudo apt-get -y install bats
 git clone https://github.com/konstruktoid/hardening.git
 cd hardening/tests/
-sudo bats . #note the '.'
+sudo bats .
 ----
 
 === Test automation using Vagrant
@@ -396,147 +378,25 @@ versions. The script will generate a file named `TESTRESULTS.adoc`.
 Running `bash ./runHostTests.sh`, located in the link:tests/[tests directory],
 will generate a `TESTRESULTS-<HOSTNAME>.adoc` report.
 
-== Structure
+== Issues: snapd
+In order to use `snapd` you will have to disable the https://man7.org/linux/man-pages/man7/kernel_lockdown.7.html[kernel_lockdown]
+setting, update `grub`, reboot the host and then reinstall
+`snapd`.
+
 [source,shell]
 ----
-.
-├── LICENSE
-├── README.adoc
-├── Vagrantfile
-├── action-shellcheck
-│   ├── Dockerfile
-│   ├── README.md
-│   └── entrypoint.sh
-├── checkScore.sh
-├── config
-│   ├── aidecheck.service
-│   ├── aidecheck.timer
-│   ├── initpath.sh
-│   └── tmp.mount
-├── createPartitions.sh
-├── genIndex.sh
-├── logo
-│   ├── horizontal.png
-│   ├── icon.png
-│   └── vertical.png
-├── misc
-│   ├── audit-aggressive.rules
-│   ├── audit-base.rules
-│   ├── audit-docker.rules
-│   ├── audit.footer
-│   ├── audit.header
-│   ├── auditgenerator.sh
-│   ├── fdcount.sh
-│   ├── logrotate.conf
-│   ├── mozilla-firefox-user.js
-│   ├── proc_check.sh
-│   ├── sysctl.conf
-│   └── systemd_scan.sh
-├── renovate.json
-├── runTests.sh
-├── scripts
-│   ├── 01_pre
-│   ├── 02_ufw
-│   ├── 03_disablenet
-│   ├── 04_disablefs
-│   ├── 05_systemdconf
-│   ├── 06_journalctl
-│   ├── 07_timesyncd
-│   ├── 08_fstab
-│   ├── 09_prelink
-│   ├── 10_aptget
-│   ├── 11_hosts
-│   ├── 12_logindefs
-│   ├── 13_sysctl
-│   ├── 14_limits
-│   ├── 15_adduser
-│   ├── 16_rootaccess
-│   ├── 17_packages
-│   ├── 18_sshdconfig
-│   ├── 19_password
-│   ├── 20_cron
-│   ├── 21_ctraltdel
-│   ├── 22_auditd
-│   ├── 23_disablemod
-│   ├── 24_aide
-│   ├── 25_rhosts
-│   ├── 26_users
-│   ├── 27_suid
-│   ├── 28_umask
-│   ├── 29_apparmor
-│   ├── 30_path
-│   ├── 31_logindconf
-│   ├── 32_resolvedconf
-│   ├── 33_rkhunter
-│   ├── 34_issue
-│   ├── 35_apport
-│   ├── 36_lockroot
-│   ├── 37_coredump
-│   ├── 38_postfix
-│   ├── 39_motdnews
-│   ├── 40_usbguard
-│   ├── 41_compilers
-│   ├── 42_kernel
-│   ├── 43_sudo
-│   ├── 98_systemddelta
-│   ├── 99_post
-│   └── 99_reboot
-├── systemd.adoc
-├── tests
-│   ├── 01_pre.bats
-│   ├── 02_ufw.bats
-│   ├── 03_disablenet.bats
-│   ├── 04_disablefs.bats
-│   ├── 05_systemdconf.bats
-│   ├── 06_journalctl.bats
-│   ├── 07_timesyncd.bats
-│   ├── 08_fstab.bats
-│   ├── 10_aptget.bats
-│   ├── 11_hosts.bats
-│   ├── 12_logindefs.bats
-│   ├── 13_sysctl.bats
-│   ├── 14_limits.bats
-│   ├── 15_adduser.bats
-│   ├── 16_rootaccess.bats
-│   ├── 17_packages.bats
-│   ├── 18_sshd.bats
-│   ├── 19_password.bats
-│   ├── 20_cron.bats
-│   ├── 21_ctrlaltdel.bats
-│   ├── 22_auditd.bats
-│   ├── 23_disablemod.bats
-│   ├── 24_aide.bats
-│   ├── 26_users.bats
-│   ├── 27_suid.bats
-│   ├── 28_umask.bats
-│   ├── 29_apparmor.bats
-│   ├── 31_logindconf.bats
-│   ├── 32_resolvedconf.bats
-│   ├── 33_rkhunter.bats
-│   ├── 35_apport.bats
-│   ├── 36_lockroot.bats
-│   ├── 37_coredump.bats
-│   ├── 38_postfix.bats
-│   ├── 39_motdnews.bats
-│   ├── 40_usbguard.bats
-│   ├── 41_compilers.bats
-│   ├── 42_kernel.bats
-│   ├── 43_sudo.bats
-│   ├── 99_misc.bats
-│   ├── runHostTests.sh
-│   └── test_helper.bash
-├── ubuntu.cfg
-└── ubuntu.sh
-
-6 directories, 121 files
+sudo sed -i 's/^/# /g' /etc/default/grub.d/99-hardening-lockdown.cfg
+sudo update-grub
+sudo reboot
+sudo apt-get --assume-yes --reinstall install snapd
 ----
 
 == Recommended reading
-https://public.cyber.mil/stigs/downloads/?_dl_facet_stigs=operating-systems%2Cunix-linux[Canonical Ubuntu 16.04 LTS STIG - Ver 1, Rel 2] +
+https://public.cyber.mil/stigs/downloads/?_dl_facet_stigs=operating-systems%2Cunix-linux[Canonical Ubuntu 18.04 LTS STIG - Ver 2, Rel 1] +
 https://www.cisecurity.org/benchmark/distribution_independent_linux/[CIS Distribution Independent Linux Benchmark] +
 https://www.cisecurity.org/benchmark/ubuntu_linux/[CIS Ubuntu Linux Benchmark] +
-https://www.ncsc.gov.uk/collection/end-user-device-security/platform-specific-guidance/ubuntu-18-04-lts[EUD Security Guidance: Ubuntu 18.04 LTS]
-https://public.cyber.mil/stigs/downloads/?_dl_facet_stigs=operating-systems%2Cunix-linux[Red Hat Enterprise Linux 7 - Ver 2, Rel 3 STIG ] +
+https://www.ncsc.gov.uk/collection/end-user-device-security/platform-specific-guidance/ubuntu-18-04-lts[EUD Security Guidance: Ubuntu 18.04 LTS] +
+https://public.cyber.mil/stigs/downloads/?_dl_facet_stigs=operating-systems%2Cunix-linux[Red Hat Enterprise Linux 7 - Ver 2, Rel 3 STIG] +
 https://wiki.ubuntu.com/Security/Features +
 https://help.ubuntu.com/community/StricterDefaults +
 
